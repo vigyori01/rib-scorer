@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>RIB Scorer</title>
+<style>
+:root{--bg:#08131f;--panel:#112237;--panel2:#183050;--line:#28456b;--txt:#f1f6fc;--mute:#8ea8c8;--acc:#ffd23f;--go:#2ee88a;--bad:#ff5a5f;--blue:#3fa7ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding-bottom:70px}
+button{font:inherit;color:inherit;cursor:pointer}
+input,textarea,select{font:inherit;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+textarea{min-height:110px;font-size:14px;font-family:ui-monospace,Menlo,monospace}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:18px 0 8px}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 12px 8px;border-bottom:1px solid var(--line)}
+.row{display:flex;gap:8px;align-items:center}
+.grow{flex:1;min-width:0}
+.title{font-size:20px;font-weight:800}
+.title .live{color:var(--go);font-size:13px;font-weight:700;margin-left:6px;vertical-align:middle}
+.title .closed{color:var(--mute);font-size:13px;font-weight:700;margin-left:6px;vertical-align:middle}
+.stats{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.stat{background:var(--panel);border-radius:8px;padding:4px 9px;font-size:13px;color:var(--mute)}
+.stat b{color:var(--txt);font-size:15px}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-weight:700;white-space:nowrap}
+.btn.pri{background:var(--acc);color:#1d1600;border-color:var(--acc)}
+.btn.go{background:var(--go);color:#03240f;border-color:var(--go)}
+.btn.bad{background:transparent;color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:7px 10px;font-size:14px}
+.btn:active{transform:scale(.97)}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-weight:800;font-size:15px}
+.chip.on{background:var(--bad);border-color:var(--bad);color:#fff}
+.chip.tog.on{background:var(--blue);border-color:var(--blue)}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--panel);border-top:1px solid var(--line);z-index:20}
+nav.tabs button{flex:1;padding:8px 0 10px;background:none;border:0;color:var(--mute);font-size:12px;font-weight:700}
+nav.tabs button.on{color:var(--acc)}
+nav.tabs .ic{display:block;font-size:21px;line-height:1.2}
+.view{display:none}
+.view.on{display:block}
+.pad{padding:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;padding:12px}
+.boat{position:relative;min-height:70px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);padding:6px 4px;font-weight:800;font-size:23px;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;line-height:1.1;text-align:center}
+.boat small{font-size:11px;font-weight:500;color:var(--mute);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.boat:active{background:var(--blue)}
+.boat.fin{opacity:.4;border-color:var(--go)}
+.boat.cod{opacity:.5;border-color:var(--bad)}
+.boat.hit{animation:hit .35s}
+@keyframes hit{0%{background:var(--go)}100%{background:var(--panel2)}}
+.badge{position:absolute;top:-7px;right:-7px;background:var(--go);color:#03240f;font-size:12px;font-weight:800;border-radius:10px;padding:2px 6px;opacity:1}
+.cod .badge{background:var(--bad);color:#fff}
+.bar{position:fixed;left:0;right:0;bottom:58px;background:var(--panel);border-top:1px solid var(--line);padding:8px 10px;z-index:15}
+.strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.fchip{flex:none;background:var(--panel2);border-radius:8px;padding:4px 8px;font-size:14px}
+.fchip b{color:var(--go);margin-right:4px}
+.fchip:last-child{outline:2px solid var(--go)}
+#v-race .grid{padding-bottom:130px}
+.empty{padding:40px 20px;text-align:center;color:var(--mute)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.hint{font-size:13px;color:var(--mute);margin:6px 0}
+.list{max-height:280px;overflow:auto;margin-top:8px}
+.li{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:15px}
+.li b{min-width:70px}
+.li .x{margin-left:auto;background:none;border:0;color:var(--bad);font-size:20px;padding:0 6px}
+.tbl{overflow-x:auto;border-radius:12px;border:1px solid var(--line)}
+table.res{border-collapse:collapse;width:100%;font-size:14px}
+.res th,.res td{padding:7px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+.res th{background:var(--panel);color:var(--mute);font-size:12px;position:sticky;top:0}
+.res td.l,.res th.l{text-align:left;position:sticky;left:0;background:var(--bg)}
+.res th.l{background:var(--panel)}
+.res td.l small{display:block;color:var(--mute);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis}
+.res td.c{color:var(--bad);font-weight:700;font-size:12px}
+.res td.d{color:var(--mute);text-decoration:line-through}
+.res td.p{color:var(--blue)}
+.res td.net{font-weight:800;color:var(--acc);font-size:15px}
+.res tr:nth-child(1) td:first-child{color:var(--acc);font-weight:800}
+.lv{color:var(--go)}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:50}
+#modal.on{display:flex}
+.sheet{background:var(--panel);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 14px 22px;max-height:85vh;overflow:auto}
+.sheet h3{margin:0 0 6px;font-size:20px}
+.sheet p{color:var(--mute);margin:4px 0 10px}
+.mbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.mbtns .btn{flex:1 1 40%}
+#toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:var(--acc);color:#1d1600;padding:8px 14px;border-radius:10px;font-weight:700;z-index:60;display:none;max-width:90%;text-align:center}
+.flex-wrap{display:flex;flex-wrap:wrap;gap:8px}
+label.ck{display:flex;align-items:center;gap:10px;margin-top:10px}
+label.ck input{width:22px;height:22px}
+.num{width:80px;text-align:center}
+.rl{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<!-- FINISH VIEW -->
+<section class="view" id="v-race">
+  <div class="top">
+    <div class="row">
+      <div class="grow title" id="raceTitle">Race</div>
+      <select id="raceSel" style="width:auto;padding:8px"></select>
+      <button class="btn sm" id="newRaceBtn">+ Race</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="filter" class="grow" placeholder="Type sail no. to filter…" inputmode="search" autocomplete="off">
+      <button class="chip tog" id="hideFinBtn">Hide done</button>
+    </div>
+    <div class="stats" id="raceStats"></div>
+  </div>
+  <div class="grid" id="raceGrid"></div>
+  <div class="bar" id="raceBar"></div>
+</section>
+
+<!-- START / BFD VIEW -->
+<section class="view" id="v-start">
+  <div class="top">
+    <div class="title" id="startTitle">Start</div>
+    <div class="hint">Pick a code, then tap the boats. Tap again to clear. These boats are taken out of the finish count automatically.</div>
+    <div class="flex-wrap" id="codeChips"></div>
+    <input id="filter2" placeholder="Type sail no. to filter…" inputmode="search" autocomplete="off" style="margin-top:8px">
+  </div>
+  <div class="pad" id="startSummary" style="padding-bottom:0"></div>
+  <div class="grid" id="startGrid"></div>
+</section>
+
+<!-- RESULTS VIEW -->
+<section class="view" id="v-results">
+  <div class="top">
+    <div class="row">
+      <div class="grow title" id="resTitle">Results</div>
+      <button class="btn sm" id="copyRes">Copy</button>
+    </div>
+    <div class="hint" id="resHint"></div>
+  </div>
+  <div class="pad">
+    <div class="tbl" id="resTable"></div>
+    <h2>Races</h2>
+    <div id="raceList"></div>
+  </div>
+</section>
+
+<!-- SETUP VIEW -->
+<section class="view" id="v-setup">
+  <div class="top"><div class="title">Setup</div></div>
+  <div class="pad">
+    <div class="card">
+      <h2 style="margin-top:0">Event</h2>
+      <input id="evName" placeholder="Event name (e.g. Balaton Cup – ILCA 6)">
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Entry list</h2>
+      <div class="hint">Upload a CSV, TXT or Excel file, or paste the list below. One boat per line, e.g. <b>HUN 123, Kiss Anna, BYC</b>. Columns called Sail / Name / Club are detected automatically.</div>
+      <input type="file" id="fileIn" accept=".csv,.txt,.tsv,.xlsx,.xls" style="margin:6px 0 10px">
+      <textarea id="pasteIn" placeholder="HUN 123, Kiss Anna, BYC&#10;HUN 45, Nagy Bence, TVSK&#10;…or paste straight from Excel"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn pri grow" id="parseBtn">Load pasted list</button>
+      </div>
+      <h2>Boats (<span id="entCount">0</span>)</h2>
+      <div class="row">
+        <input id="addSail" placeholder="Sail no." style="width:110px">
+        <input id="addName" class="grow" placeholder="Name (optional)">
+        <button class="btn" id="addBtn">Add</button>
+      </div>
+      <div class="list" id="entList"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Scoring</h2>
+      <div class="hint">Low Point System: 1st = 1 pt, 2nd = 2 pt… Codes (BFD, UFD, DNF…) = number of entries + 1.</div>
+      <div class="rl"><span class="grow">1st discard from race</span><input class="num" id="d1" type="number" min="0" inputmode="numeric"></div>
+      <div class="rl"><span class="grow">2nd discard from race</span><input class="num" id="d2" type="number" min="0" inputmode="numeric"></div>
+      <div class="hint">0 = no discard.</div>
+      <label class="ck"><input type="checkbox" id="liveCk"> Include the race in progress in the live standings</label>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Data</h2>
+      <div class="hint">Everything is saved on this phone automatically.</div>
+      <div class="flex-wrap">
+        <button class="btn" id="backupBtn">Copy backup</button>
+        <button class="btn" id="restoreBtn">Restore backup</button>
+        <button class="btn bad" id="resetRaces">Clear all races</button>
+        <button class="btn bad" id="resetAll">Reset everything</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<nav class="tabs">
+  <button data-v="race"><span class="ic">🏁</span>Finish</button>
+  <button data-v="start"><span class="ic">🚩</span>BFD / UFD</button>
+  <button data-v="results"><span class="ic">🏆</span>Results</button>
+  <button data-v="setup"><span class="ic">⚙️</span>Setup</button>
+</nav>
+
+<div id="modal"></div>
+<div id="toast"></div>
+
+<script>
+const CODES=['BFD','UFD','OCS','DNS','DNC','DNF','RET','DSQ','DNE'];
+const START_CODES=['BFD','UFD','OCS','DNS','DNC'];
+const KEY='ribscorer_v1';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+const keyOf=s=>String(s).toUpperCase().replace(/\s+/g,'');
+
+function blank(){return{name:'',entries:[],races:[],cur:-1,d1:4,d2:0,live:true,tab:'setup'}}
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&Array.isArray(j.entries))return Object.assign(blank(),j)}catch(e){}return blank()}
+let S=load();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+const byId=id=>S.entries.find(e=>e.id===id);
+const sorted=()=>[...S.entries].sort((a,b)=>a.sail.localeCompare(b.sail,undefined,{numeric:true}));
+const race=()=>S.races[S.cur];
+function newRace(){S.races.push({order:[],codes:{},done:false});S.cur=S.races.length-1;save()}
+function ensureRace(){if(!race()){if(S.races.length){S.cur=S.races.length-1}else newRace()}return race()}
+function positions(r){const p={};let n=0;r.order.forEach(id=>{if(!r.codes[id]&&byId(id))p[id]=++n});return p}
+function buzz(ms=25){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
+let toastT;function toast(t){const el=$('#toast');el.textContent=t;el.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>el.style.display='none',1800)}
+
+/* ---------- modal ---------- */
+function modal(html,btns=[]){
+  const m=$('#modal');m.innerHTML=`<div class="sheet">${html}<div class="mbtns"></div></div>`;
+  const bx=m.querySelector('.mbtns');
+  btns.forEach(b=>{const el=document.createElement('button');el.className='btn '+(b.cls||'');el.textContent=b.t;
+    el.onclick=()=>{const r=b.f?b.f():undefined;if(r!==false)closeModal()};bx.appendChild(el)});
+  m.classList.add('on');
+}
+function closeModal(){$('#modal').classList.remove('on')}
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
+
+/* ---------- tap + long-press ---------- */
+function bindPress(el,onTap,onHold){
+  let t=null,held=false,id=null,sx=0,sy=0;
+  el.addEventListener('pointerdown',e=>{const b=e.target.closest('.boat');if(!b)return;id=b.dataset.id;held=false;sx=e.clientX;sy=e.clientY;
+    t=setTimeout(()=>{held=true;buzz(60);onHold&&onHold(id)},550)});
+  el.addEventListener('pointermove',e=>{if(t&&!held&&(Math.abs(e.clientX-sx)>10||Math.abs(e.clientY-sy)>10)){clearTimeout(t);t=null;id=null}});
+  el.addEventListener('pointerup',()=>{if(!t)return;clearTimeout(t);t=null;if(!held&&id)onTap(id);id=null});
+  el.addEventListener('pointercancel',()=>{clearTimeout(t);t=null;id=null});
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+}
+
+/* ---------- tabs ---------- */
+function show(v){S.tab=v;save();document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+v));
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));render();window.scrollTo(0,0)}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+
+function render(){({race:renderRace,start:renderStart,results:renderResults,setup:renderSetup})[S.tab]()}
+
+const noEntries=()=>`<div class="empty">No boats yet.<br><br><button class="btn pri" onclick="show('setup')">Upload entry list</button></div>`;
+function filt(list,q){q=keyOf(q);return q?list.filter(e=>keyOf(e.sail).includes(q)||keyOf(e.name).includes(q)):list}
+
+/* ---------- FINISH ---------- */
+let hideFin=false,lastHit=null;
+function renderRace(){
+  if(!S.entries.length){$('#raceGrid').innerHTML=noEntries();$('#raceBar').style.display='none';$('#raceStats').innerHTML='';$('#raceTitle').textContent='Finish';$('#raceSel').innerHTML='';return}
+  const r=ensureRace(),p=positions(r);
+  $('#raceTitle').innerHTML=`Race ${S.cur+1}${r.done?'<span class="closed">CLOSED</span>':'<span class="live">● LIVE</span>'}`;
+  $('#raceSel').innerHTML=S.races.map((x,i)=>`<option value="${i}" ${i===S.cur?'selected':''}>R${i+1}${x.done?'':' •'}</option>`).join('');
+  const nFin=Object.keys(p).length,nCod=Object.keys(r.codes).length;
+  const left=S.entries.filter(e=>!r.codes[e.id]&&!r.order.includes(e.id)).length;
+  $('#raceStats').innerHTML=`<span class="stat">Finished <b>${nFin}</b></span><span class="stat">Codes <b>${nCod}</b></span><span class="stat">Still racing <b>${left}</b></span><span class="stat">Entries <b>${S.entries.length}</b></span>`;
+  $('#hideFinBtn').classList.toggle('on',hideFin);
+  let list=filt(sorted(),$('#filter').value);
+  if(hideFin)list=list.filter(e=>!r.codes[e.id]&&!r.order.includes(e.id));
+  $('#raceGrid').innerHTML=list.map(e=>{
+    const c=r.codes[e.id],f=p[e.id];
+    const cls=c?'cod':(r.order.includes(e.id)?'fin':'');
+    const badge=c?`<span class="badge">${c}</span>`:(f?`<span class="badge">${f}</span>`:'');
+    return `<div class="boat ${cls} ${lastHit===e.id?'hit':''}" data-id="${e.id}">${badge}${esc(e.sail)}<small>${esc(e.name)}</small></div>`}).join('')||`<div class="empty">${hideFin&&left===0?'All boats recorded 🎉':'No match'}</div>`;
+  lastHit=null;
+  // bottom bar
+  const bar=$('#raceBar');bar.style.display='block';
+  const fins=r.order.filter(id=>p[id]).map(id=>`<span class="fchip"><b>${p[id]}</b>${esc(byId(id).sail)}</span>`).join('');
+  if(r.done){
+    bar.innerHTML=`<div class="row"><button class="btn grow" onclick="reopen()">Reopen race</button><button class="btn go grow" onclick="nextRace()">Start race ${S.races.length+1} →</button></div>`;
+  }else{
+    bar.innerHTML=`<div class="strip" id="strip">${fins||'<span class="hint" style="margin:2px 0">Tap boats in the order they finish. Hold a boat to edit it.</span>'}</div>
+    <div class="row"><button class="btn grow" onclick="undo()" ${r.order.length?'':'disabled style="opacity:.4"'}>↶ Undo</button><button class="btn pri grow" onclick="endRace()">End race</button></div>`;
+    const st=$('#strip');st.scrollLeft=st.scrollWidth;
+  }
+}
+bindPress($('#raceGrid'),id=>{
+  const r=race();if(!r)return;
+  if(r.done){toast('Race closed — tap Reopen to edit');return}
+  if(r.codes[id]){toast(`${byId(id).sail} has ${r.codes[id]} — hold to change`);return}
+  if(r.order.includes(id)){toast(`${byId(id).sail} already finished — hold to edit`);return}
+  r.order.push(id);lastHit=id;buzz();save();
+  if($('#filter').value){$('#filter').value=''}
+  renderRace();
+},id=>boatSheet(id));
+$('#filter').addEventListener('input',renderRace);
+$('#hideFinBtn').onclick=()=>{hideFin=!hideFin;renderRace()};
+$('#raceSel').onchange=e=>{S.cur=+e.target.value;save();renderRace()};
+$('#newRaceBtn').onclick=()=>{const r=race();if(r&&!r.done&&(r.order.length||Object.keys(r.codes).length)){
+  modal(`<h3>Start a new race?</h3><p>Race ${S.cur+1} is still open. It stays open and you can come back to it.</p>`,[{t:'Cancel'},{t:'New race',cls:'pri',f:()=>{newRace();renderRace()}}])}else if(r&&!r.done&&!r.order.length){toast(`Race ${S.cur+1} is ready`)}else{newRace();renderRace()}};
+
+function undo(){const r=race();if(!r||!r.order.length)return;const id=r.order.pop();save();toast(`Removed ${byId(id)?.sail||''}`);renderRace()}
+function reopen(){race().done=false;save();renderRace()}
+function nextRace(){newRace();show('race')}
+function endRace(){
+  const r=race();const left=S.entries.filter(e=>!r.codes[e.id]&&!r.order.includes(e.id));
+  const close=code=>{if(code)left.forEach(e=>r.codes[e.id]=code);r.done=true;save();renderRace();toast(`Race ${S.cur+1} closed`)};
+  if(!left.length){modal(`<h3>Close race ${S.cur+1}?</h3><p>All boats recorded.</p>`,[{t:'Cancel'},{t:'Close race',cls:'pri',f:()=>close()}]);return}
+  modal(`<h3>Close race ${S.cur+1}?</h3><p>${left.length} boat${left.length>1?'s are':' is'} not recorded:<br><b style="color:var(--txt)">${left.map(e=>esc(e.sail)).join(', ')}</b></p><p>Score them as:</p>`,
+    [{t:'DNF',cls:'pri',f:()=>close('DNF')},{t:'DNC',cls:'pri',f:()=>close('DNC')},{t:'DNS',f:()=>close('DNS')},{t:'Cancel'}]);
+}
+function boatSheet(id){
+  const r=race(),e=byId(id);if(!r||!e)return;const p=positions(r);
+  const status=r.codes[id]?`Code: <b>${r.codes[id]}</b>`:p[id]?`Finished <b>${p[id]}${['st','nd','rd'][((p[id]+90)%100-10)%10-1]||'th'}</b>`:'Still racing';
+  const btns=[];
+  if(r.order.includes(id))btns.push({t:'Remove from finish',cls:'bad',f:()=>{r.order=r.order.filter(x=>x!==id);save();render()}});
+  else if(!r.codes[id])btns.push({t:'Finish now',cls:'go',f:()=>{r.order.push(id);save();render()}});
+  if(r.order.includes(id)){
+    const i=r.order.indexOf(id);
+    if(i>0)btns.push({t:'▲ Move up',f:()=>{[r.order[i-1],r.order[i]]=[r.order[i],r.order[i-1]];save();render()}});
+    if(i<r.order.length-1)btns.push({t:'▼ Move down',f:()=>{[r.order[i+1],r.order[i]]=[r.order[i],r.order[i+1]];save();render()}});
+  }
+  CODES.forEach(c=>btns.push({t:c,cls:r.codes[id]===c?'pri':'',f:()=>{if(r.codes[id]===c)delete r.codes[id];else r.codes[id]=c;save();render()}}));
+  if(r.codes[id])btns.push({t:'Clear code',f:()=>{delete r.codes[id];save();render()}});
+  btns.push({t:'Close'});
+  modal(`<h3>${esc(e.sail)} <span style="font-weight:500;color:var(--mute)">${esc(e.name)}</span></h3><p>Race ${S.cur+1} · ${status}</p>`,btns);
+}
+
+/* ---------- START (BFD/UFD) ---------- */
+let selCode='BFD';
+function renderStart(){
+  $('#codeChips').innerHTML=START_CODES.map(c=>`<button class="chip ${c===selCode?'on':''}" data-c="${c}">${c}</button>`).join('');
+  if(!S.entries.length){$('#startGrid').innerHTML=noEntries();$('#startSummary').innerHTML='';$('#startTitle').textContent='Start';return}
+  const r=ensureRace();
+  $('#startTitle').innerHTML=`Race ${S.cur+1} start${r.done?'<span class="closed" style="font-size:13px;color:var(--mute);margin-left:6px">CLOSED</span>':''}`;
+  const groups={};Object.entries(r.codes).forEach(([id,c])=>{const e=byId(id);if(e)(groups[c]=groups[c]||[]).push(e.sail)});
+  $('#startSummary').innerHTML=Object.keys(groups).length?Object.entries(groups).map(([c,l])=>`<div class="stat" style="margin-bottom:6px;display:block"><b style="color:var(--bad)">${c}</b> ${l.sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(esc).join(', ')}</div>`).join(''):'<div class="hint">No start penalties in this race.</div>';
+  $('#startGrid').innerHTML=filt(sorted(),$('#filter2').value).map(e=>{const c=r.codes[e.id];
+    return `<div class="boat ${c?'cod':''}" style="${c?'opacity:1;background:#3a1418':''}" data-id="${e.id}">${c?`<span class="badge">${c}</span>`:''}${esc(e.sail)}<small>${esc(e.name)}</small></div>`}).join('')||'<div class="empty">No match</div>';
+}
+$('#codeChips').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(b){selCode=b.dataset.c;renderStart()}});
+bindPress($('#startGrid'),id=>{const r=ensureRace();if(r.codes[id]===selCode)delete r.codes[id];else r.codes[id]=selCode;buzz();save();
+  if($('#filter2').value)$('#filter2').value='';renderStart()},null);
+$('#filter2').addEventListener('input',renderStart);
+
+/* ---------- RESULTS ---------- */
+function standings(){
+  const N=S.entries.length;
+  const used=S.races.map((r,i)=>({r,i})).filter(({r})=>r.done||(S.live&&(r.order.length||Object.keys(r.codes).length)));
+  const nr=used.length;
+  const nd=(S.d2>0&&nr>=S.d2)?2:(S.d1>0&&nr>=S.d1)?1:0;
+  const rows=S.entries.map(e=>{
+    const sc=used.map(({r})=>{const p=positions(r);
+      if(r.codes[e.id])return{v:N+1,t:r.codes[e.id],code:true,dne:r.codes[e.id]==='DNE'};
+      if(p[e.id])return{v:p[e.id],t:String(p[e.id])};
+      if(r.done)return{v:N+1,t:'DNC',code:true};
+      const nf=Object.keys(p).length+1;return{v:nf,t:String(nf),prov:true};});
+    const idx=sc.map((s,j)=>j).filter(j=>!sc[j].dne).sort((a,b)=>sc[b].v-sc[a].v||b-a).slice(0,nd);
+    const disc=new Set(idx);
+    const total=sc.reduce((a,s)=>a+s.v,0);
+    const net=total-idx.reduce((a,j)=>a+sc[j].v,0);
+    return{e,sc,disc,total,net};
+  });
+  const cmp=(a,b)=>{if(a.net!==b.net)return a.net-b.net;
+    const A=a.sc.filter((s,j)=>!a.disc.has(j)).map(s=>s.v).sort((x,y)=>x-y),B=b.sc.filter((s,j)=>!b.disc.has(j)).map(s=>s.v).sort((x,y)=>x-y);
+    for(let k=0;k<Math.min(A.length,B.length);k++)if(A[k]!==B[k])return A[k]-B[k];
+    for(let k=a.sc.length-1;k>=0;k--)if(a.sc[k].v!==b.sc[k].v)return a.sc[k].v-b.sc[k].v;return 0};
+  rows.sort((a,b)=>cmp(a,b)||a.e.sail.localeCompare(b.e.sail,undefined,{numeric:true}));
+  rows.forEach((x,i)=>x.rank=(i>0&&cmp(rows[i-1],x)===0)?rows[i-1].rank:i+1);
+  return{rows,used,nd};
+}
+function renderResults(){
+  $('#resTitle').textContent=S.name||'Results';
+  if(!S.entries.length){$('#resTable').innerHTML=noEntries();$('#raceList').innerHTML='';$('#resHint').textContent='';return}
+  const {rows,used,nd}=standings();
+  const liveR=used.some(u=>!u.r.done);
+  $('#resHint').innerHTML=`${used.length} race${used.length===1?'':'s'} · ${nd} discard${nd===1?'':'s'}${liveR?' · <span class="lv">● live race: boats still racing get the next place provisionally (blue)</span>':''}`;
+  if(!used.length){$('#resTable').innerHTML='<div class="empty">No races scored yet.</div>'}
+  else $('#resTable').innerHTML=`<table class="res"><thead><tr><th>#</th><th class="l">Sail</th>${used.map(u=>`<th>R${u.i+1}${u.r.done?'':'<span class="lv">•</span>'}</th>`).join('')}<th>Net</th><th>Tot</th></tr></thead><tbody>${
+    rows.map(x=>`<tr><td>${x.rank}</td><td class="l"><b>${esc(x.e.sail)}</b><small>${esc(x.e.name)}</small></td>${
+      x.sc.map((s,j)=>`<td class="${s.code?'c':''} ${s.prov?'p':''} ${x.disc.has(j)?'d':''}">${x.disc.has(j)?'('+s.t+')':s.t}</td>`).join('')
+    }<td class="net">${x.net}</td><td>${x.total}</td></tr>`).join('')}</tbody></table>`;
+  $('#raceList').innerHTML=S.races.map((r,i)=>{const p=positions(r);
+    return `<div class="rl"><b>R${i+1}</b><span class="grow hint" style="margin:0">${Object.keys(p).length} finished · ${Object.keys(r.codes).length} codes · ${r.done?'closed':'<span class="lv">open</span>'}</span>
+    <button class="btn sm" onclick="S.cur=${i};save();show('race')">Open</button><button class="btn sm bad" onclick="delRace(${i})">✕</button></div>`}).join('')||'<div class="hint">No races yet.</div>';
+}
+function delRace(i){modal(`<h3>Delete race ${i+1}?</h3><p>Its results will be removed. This can't be undone.</p>`,[{t:'Cancel'},{t:'Delete',cls:'bad',f:()=>{S.races.splice(i,1);if(S.cur>=S.races.length)S.cur=S.races.length-1;save();renderResults()}}])}
+function resultsText(){const {rows,used}=standings();
+  const h=['Rank','Sail','Name','Club',...used.map(u=>'R'+(u.i+1)),'Net','Total'].join('\t');
+  return [S.name,h,...rows.map(x=>[x.rank,x.e.sail,x.e.name,x.e.club||'',...x.sc.map((s,j)=>x.disc.has(j)?'('+s.t+')':s.t),x.net,x.total].join('\t'))].filter(Boolean).join('\n')}
+function copyText(t,label){
+  const fallback=()=>modal(`<h3>${label}</h3><p>Select all and copy:</p><textarea readonly style="min-height:200px">${esc(t)}</textarea>`,[{t:'Close'}]);
+  try{navigator.clipboard.writeText(t).then(()=>toast('Copied ✓'),fallback)}catch(e){fallback()}}
+$('#copyRes').onclick=()=>copyText(resultsText(),'Results');
+
+/* ---------- SETUP ---------- */
+function renderSetup(){
+  $('#evName').value=S.name;$('#d1').value=S.d1;$('#d2').value=S.d2;$('#liveCk').checked=S.live;
+  $('#entCount').textContent=S.entries.length;
+  $('#entList').innerHTML=sorted().map(e=>`<div class="li"><b>${esc(e.sail)}</b><span>${esc(e.name)}</span><span class="hint" style="margin:0">${esc(e.club||'')}</span><button class="x" onclick="delEntry('${e.id}')">×</button></div>`).join('')||'<div class="hint">No boats yet.</div>';
+}
+$('#evName').oninput=e=>{S.name=e.target.value;save()};
+$('#d1').oninput=e=>{S.d1=Math.max(0,+e.target.value||0);save()};
+$('#d2').oninput=e=>{S.d2=Math.max(0,+e.target.value||0);save()};
+$('#liveCk').onchange=e=>{S.live=e.target.checked;save()};
+function delEntry(id){const e=byId(id);modal(`<h3>Remove ${esc(e.sail)}?</h3><p>Their results in all races will be removed too.</p>`,[{t:'Cancel'},{t:'Remove',cls:'bad',f:()=>{
+  S.entries=S.entries.filter(x=>x.id!==id);S.races.forEach(r=>{r.order=r.order.filter(x=>x!==id);delete r.codes[id]});save();renderSetup()}}])}
+$('#addBtn').onclick=()=>{const s=$('#addSail').value.trim();if(!s)return toast('Enter a sail number');
+  if(S.entries.some(e=>keyOf(e.sail)===keyOf(s)))return toast('Sail number already in list');
+  S.entries.push({id:uid(),sail:s,name:$('#addName').value.trim(),club:''});$('#addSail').value='';$('#addName').value='';save();renderSetup();$('#addSail').focus()};
+
+function splitRow(l,d){const out=[];let cur='',q=false;for(let i=0;i<l.length;i++){const c=l[i];
+  if(q){if(c==='"'){if(l[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
+  else if(c==='"')q=true;else if(c===d){out.push(cur);cur=''}else cur+=c}out.push(cur);return out.map(s=>s.trim())}
+function parseText(text){
+  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim());if(!lines.length)return[];
+  const f=lines[0];const d=f.includes('\t')?'\t':(f.split(';').length>f.split(',').length?';':',');
+  let rows=lines.map(l=>splitRow(l,d));
+  if(rows.every(r=>r.length===1))rows=rows.map(([s])=>{const m=s.match(/^([A-Za-z]{2,3}\s?\d+|\d+[A-Za-z]?)\s+(.+)$/);return m?[m[1],m[2]]:[s]});
+  return rows;
+}
+function rowsToEntries(rows){
+  rows=rows.map(r=>r.map(c=>String(c??'').trim())).filter(r=>r.some(c=>c));if(!rows.length)return[];
+  const hdr=rows[0].map(h=>h.toLowerCase());
+  const find=(re,skip=[])=>hdr.findIndex((h,i)=>!skip.includes(i)&&re.test(h));
+  let si=find(/sail|bow|^no\.?$|^nr\.?$|number|rajtsz|vitorla|^#$/);
+  let ci=find(/club|team|^nat|country|nation|egyes|klub/,[si]);
+  let fi=find(/first|given|kereszt/,[si,ci]),la=find(/last|surname|family|vezet/,[si,ci]);
+  let ni=find(/name|helm|sailor|skipper|név|nev|crew|versenyz/,[si,ci,fi,la]);
+  const hasHdr=si>=0||ci>=0||ni>=0||fi>=0||la>=0;
+  if(hasHdr)rows=rows.slice(1);else{si=0;ni=rows[0].length>1?1:-1;ci=rows[0].length>2?2:-1}
+  if(si<0)si=0;
+  const out=[],seen=new Set();
+  rows.forEach(r=>{const sail=r[si];if(!sail||seen.has(keyOf(sail)))return;seen.add(keyOf(sail));
+    let name=ni>=0?r[ni]:'';if(!name&&(fi>=0||la>=0))name=[fi>=0?r[fi]:'',la>=0?r[la]:''].filter(Boolean).join(' ');
+    out.push({sail,name:name||'',club:ci>=0?r[ci]||'':''})});
+  return out;
+}
+function offerEntries(list){
+  if(!list.length)return toast('No boats found in that list');
+  const prev=list.slice(0,10).map(e=>`<div class="li"><b>${esc(e.sail)}</b><span>${esc(e.name)}</span><span class="hint" style="margin:0">${esc(e.club)}</span></div>`).join('');
+  const apply=replace=>{
+    const ex=new Map(S.entries.map(e=>[keyOf(e.sail),e]));
+    const fresh=list.map(n=>{const o=ex.get(keyOf(n.sail));return o?Object.assign(o,{sail:n.sail,name:n.name||o.name,club:n.club||o.club}):{id:uid(),...n}});
+    if(replace){const keep=new Set(fresh.map(e=>e.id));S.entries=fresh;S.races.forEach(r=>{r.order=r.order.filter(id=>keep.has(id));Object.keys(r.codes).forEach(id=>{if(!keep.has(id))delete r.codes[id]})})}
+    else{const ids=new Set(S.entries.map(e=>e.id));fresh.forEach(e=>{if(!ids.has(e.id))S.entries.push(e)})}
+    save();$('#pasteIn').value='';renderSetup();toast(`${S.entries.length} boats loaded`)};
+  const btns=S.entries.length?[{t:'Replace list',cls:'pri',f:()=>apply(true)},{t:'Add to list',f:()=>apply(false)},{t:'Cancel'}]:[{t:'Use this list',cls:'pri',f:()=>apply(true)},{t:'Cancel'}];
+  modal(`<h3>Found ${list.length} boats</h3><p>Check the columns look right:</p><div class="list" style="max-height:240px">${prev}${list.length>10?`<div class="hint">…and ${list.length-10} more</div>`:''}</div>`,btns);
+}
+$('#parseBtn').onclick=()=>offerEntries(rowsToEntries(parseText($('#pasteIn').value)));
+function loadXLSX(){return new Promise((res,rej)=>{if(window.XLSX)return res();const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+$('#fileIn').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  try{
+    if(/\.xlsx?$/i.test(f.name)){await loadXLSX();const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});offerEntries(rowsToEntries(rows))}
+    else offerEntries(rowsToEntries(parseText(await f.text())));
+  }catch(err){toast('Could not read that file — try saving it as CSV')}
+  e.target.value=''};
+
+$('#backupBtn').onclick=()=>copyText(JSON.stringify(S),'Backup');
+$('#restoreBtn').onclick=()=>{modal(`<h3>Restore backup</h3><p>Paste a backup you copied earlier. This replaces everything on this phone.</p><textarea id="restoreTxt"></textarea>`,[{t:'Cancel'},{t:'Restore',cls:'pri',f:()=>{
+  try{const j=JSON.parse($('#restoreTxt').value);if(!Array.isArray(j.entries))throw 0;S=Object.assign(blank(),j);save();renderSetup();toast('Backup restored')}catch(e){toast('That backup is not valid');return false}}}])};
+$('#resetRaces').onclick=()=>modal(`<h3>Clear all races?</h3><p>Boats stay, all results are deleted.</p>`,[{t:'Cancel'},{t:'Clear races',cls:'bad',f:()=>{S.races=[];S.cur=-1;save();toast('Races cleared')}}]);
+$('#resetAll').onclick=()=>modal(`<h3>Reset everything?</h3><p>Deletes the entry list and all results on this phone.</p>`,[{t:'Cancel'},{t:'Reset',cls:'bad',f:()=>{S=blank();save();renderSetup();toast('Reset done')}}]);
+
+show(S.entries.length?(S.tab||'race'):'setup');
+</script>
+</body>
+</html>
