@@ -127,8 +127,10 @@ label.ck input{width:22px;height:22px}
   <div class="top">
     <div class="row">
       <div class="grow title" id="resTitle">Results</div>
+      <button class="btn sm" onclick="$('#resFileIn').click()">Import</button>
       <button class="btn sm" id="copyRes">Copy</button>
     </div>
+    <input type="file" id="resFileIn" accept=".pdf,.csv,.txt,.tsv,.xlsx,.xls" style="display:none">
     <div class="hint" id="resHint"></div>
   </div>
   <div class="pad">
@@ -162,6 +164,14 @@ label.ck input{width:22px;height:22px}
         <button class="btn" id="addBtn">Add</button>
       </div>
       <div class="list" id="entList"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Import earlier results</h2>
+      <div class="hint">Load the official results so far (e.g. day 1) from a <b>PDF</b> (Sailwave, Manage2Sail…), Excel, CSV, or pasted text. The races are added to this event and new races you score continue after them. Boats not in your entry list are added automatically.</div>
+      <input type="file" id="resFileIn2" accept=".pdf,.csv,.txt,.tsv,.xlsx,.xls" style="margin:6px 0 10px">
+      <textarea id="resPaste" placeholder="Rank  Sail No  Name  Club  R1  R2  R3  Total  Net&#10;1  HUN 123  Kiss Anna  BYC  1  2  (5)  8  3&#10;…"></textarea>
+      <button class="btn pri" style="width:100%;margin-top:8px" id="resPasteBtn">Import pasted results</button>
     </div>
 
     <div class="card">
@@ -214,7 +224,11 @@ const byId=id=>S.entries.find(e=>e.id===id);
 const sorted=()=>[...S.entries].sort((a,b)=>a.sail.localeCompare(b.sail,undefined,{numeric:true}));
 const race=()=>S.races[S.cur];
 function newRace(){S.races.push({order:[],codes:{},done:false});S.cur=S.races.length-1;save()}
-function ensureRace(){if(!race()){if(S.races.length){S.cur=S.races.length-1}else newRace()}return race()}
+function ensureRace(){if(!race()){const l=S.races[S.races.length-1];if(l&&!l.scores){S.cur=S.races.length-1}else newRace()}return race()}
+const fmt=v=>String(Math.round(v*10)/10);
+const PEN=['SCP','ZFP','RDG','DPI','STP','RDGA','RDGB','RDGC'];
+function importedNotice(){return `<div class="empty">Race ${S.cur+1} was imported from a results file.<br>Edit its scores in <b>Results</b> by tapping a cell.<br><br>
+  <button class="btn" onclick="show('results')">Go to Results</button> <button class="btn pri" onclick="newRace();render()">+ New race</button></div>`}
 function positions(r){const p={};let n=0;r.order.forEach(id=>{if(!r.codes[id]&&byId(id))p[id]=++n});return p}
 function buzz(ms=25){try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}}
 let toastT;function toast(t){const el=$('#toast');el.textContent=t;el.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>el.style.display='none',1800)}
@@ -256,8 +270,9 @@ let hideFin=false,lastHit=null;
 function renderRace(){
   if(!S.entries.length){$('#raceGrid').innerHTML=noEntries();$('#raceBar').style.display='none';$('#raceStats').innerHTML='';$('#raceTitle').textContent='Finish';$('#raceSel').innerHTML='';return}
   const r=ensureRace(),p=positions(r);
-  $('#raceTitle').innerHTML=`Race ${S.cur+1}${r.done?'<span class="closed">CLOSED</span>':'<span class="live">● LIVE</span>'}`;
-  $('#raceSel').innerHTML=S.races.map((x,i)=>`<option value="${i}" ${i===S.cur?'selected':''}>R${i+1}${x.done?'':' •'}</option>`).join('');
+  $('#raceTitle').innerHTML=`Race ${S.cur+1}${r.scores?'<span class="closed">IMPORTED</span>':r.done?'<span class="closed">CLOSED</span>':'<span class="live">● LIVE</span>'}`;
+  $('#raceSel').innerHTML=S.races.map((x,i)=>`<option value="${i}" ${i===S.cur?'selected':''}>R${i+1}${x.scores?' (imp)':x.done?'':' •'}</option>`).join('');
+  if(r.scores){$('#raceStats').innerHTML='';$('#raceGrid').innerHTML=importedNotice();$('#raceBar').style.display='none';return}
   const nFin=Object.keys(p).length,nCod=Object.keys(r.codes).length;
   const left=S.entries.filter(e=>!r.codes[e.id]&&!r.order.includes(e.id)).length;
   $('#raceStats').innerHTML=`<span class="stat">Finished <b>${nFin}</b></span><span class="stat">Codes <b>${nCod}</b></span><span class="stat">Still racing <b>${left}</b></span><span class="stat">Entries <b>${S.entries.length}</b></span>`;
@@ -307,7 +322,7 @@ function endRace(){
     [{t:'DNF',cls:'pri',f:()=>close('DNF')},{t:'DNC',cls:'pri',f:()=>close('DNC')},{t:'DNS',f:()=>close('DNS')},{t:'Cancel'}]);
 }
 function boatSheet(id){
-  const r=race(),e=byId(id);if(!r||!e)return;const p=positions(r);
+  const r=race(),e=byId(id);if(!r||!e)return;if(r.scores)return editScore(S.cur,id);const p=positions(r);
   const status=r.codes[id]?`Code: <b>${r.codes[id]}</b>`:p[id]?`Finished <b>${p[id]}${['st','nd','rd'][((p[id]+90)%100-10)%10-1]||'th'}</b>`:'Still racing';
   const btns=[];
   if(r.order.includes(id))btns.push({t:'Remove from finish',cls:'bad',f:()=>{r.order=r.order.filter(x=>x!==id);save();render()}});
@@ -329,6 +344,7 @@ function renderStart(){
   $('#codeChips').innerHTML=START_CODES.map(c=>`<button class="chip ${c===selCode?'on':''}" data-c="${c}">${c}</button>`).join('');
   if(!S.entries.length){$('#startGrid').innerHTML=noEntries();$('#startSummary').innerHTML='';$('#startTitle').textContent='Start';return}
   const r=ensureRace();
+  if(r.scores){$('#startTitle').textContent=`Race ${S.cur+1}`;$('#startSummary').innerHTML='';$('#startGrid').innerHTML=importedNotice();return}
   $('#startTitle').innerHTML=`Race ${S.cur+1} start${r.done?'<span class="closed" style="font-size:13px;color:var(--mute);margin-left:6px">CLOSED</span>':''}`;
   const groups={};Object.entries(r.codes).forEach(([id,c])=>{const e=byId(id);if(e)(groups[c]=groups[c]||[]).push(e.sail)});
   $('#startSummary').innerHTML=Object.keys(groups).length?Object.entries(groups).map(([c,l])=>`<div class="stat" style="margin-bottom:6px;display:block"><b style="color:var(--bad)">${c}</b> ${l.sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(esc).join(', ')}</div>`).join(''):'<div class="hint">No start penalties in this race.</div>';
@@ -336,18 +352,21 @@ function renderStart(){
     return `<div class="boat ${c?'cod':''}" style="${c?'opacity:1;background:#3a1418':''}" data-id="${e.id}">${c?`<span class="badge">${c}</span>`:''}${esc(e.sail)}<small>${esc(e.name)}</small></div>`}).join('')||'<div class="empty">No match</div>';
 }
 $('#codeChips').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(b){selCode=b.dataset.c;renderStart()}});
-bindPress($('#startGrid'),id=>{const r=ensureRace();if(r.codes[id]===selCode)delete r.codes[id];else r.codes[id]=selCode;buzz();save();
+bindPress($('#startGrid'),id=>{const r=ensureRace();if(r.scores)return;if(r.codes[id]===selCode)delete r.codes[id];else r.codes[id]=selCode;buzz();save();
   if($('#filter2').value)$('#filter2').value='';renderStart()},null);
 $('#filter2').addEventListener('input',renderStart);
 
 /* ---------- RESULTS ---------- */
 function standings(){
   const N=S.entries.length;
-  const used=S.races.map((r,i)=>({r,i})).filter(({r})=>r.done||(S.live&&(r.order.length||Object.keys(r.codes).length)));
+  const used=S.races.map((r,i)=>({r,i})).filter(({r})=>r.scores||r.done||(S.live&&(r.order.length||Object.keys(r.codes).length)));
   const nr=used.length;
   const nd=(S.d2>0&&nr>=S.d2)?2:(S.d1>0&&nr>=S.d1)?1:0;
   const rows=S.entries.map(e=>{
-    const sc=used.map(({r})=>{const p=positions(r);
+    const sc=used.map(({r})=>{
+      if(r.scores){const s=r.scores[e.id];if(!s)return{v:N+1,t:'DNC',code:true};
+        return{v:s.v??N+1,t:s.t,code:!!s.code&&!PEN.includes(s.code),dne:s.code==='DNE'}}
+      const p=positions(r);
       if(r.codes[e.id])return{v:N+1,t:r.codes[e.id],code:true,dne:r.codes[e.id]==='DNE'};
       if(p[e.id])return{v:p[e.id],t:String(p[e.id])};
       if(r.done)return{v:N+1,t:'DNC',code:true};
@@ -370,25 +389,161 @@ function renderResults(){
   $('#resTitle').textContent=S.name||'Results';
   if(!S.entries.length){$('#resTable').innerHTML=noEntries();$('#raceList').innerHTML='';$('#resHint').textContent='';return}
   const {rows,used,nd}=standings();
-  const liveR=used.some(u=>!u.r.done);
+  const liveR=used.some(u=>!u.r.done&&!u.r.scores);
   $('#resHint').innerHTML=`${used.length} race${used.length===1?'':'s'} · ${nd} discard${nd===1?'':'s'}${liveR?' · <span class="lv">● live race: boats still racing get the next place provisionally (blue)</span>':''}`;
   if(!used.length){$('#resTable').innerHTML='<div class="empty">No races scored yet.</div>'}
-  else $('#resTable').innerHTML=`<table class="res"><thead><tr><th>#</th><th class="l">Sail</th>${used.map(u=>`<th>R${u.i+1}${u.r.done?'':'<span class="lv">•</span>'}</th>`).join('')}<th>Net</th><th>Tot</th></tr></thead><tbody>${
+  else $('#resTable').innerHTML=`<table class="res"><thead><tr><th>#</th><th class="l">Sail</th>${used.map(u=>`<th>R${u.i+1}${u.r.scores?'<span style="color:var(--mute)">ⁱ</span>':u.r.done?'':'<span class="lv">•</span>'}</th>`).join('')}<th>Net</th><th>Tot</th></tr></thead><tbody>${
     rows.map(x=>`<tr><td>${x.rank}</td><td class="l"><b>${esc(x.e.sail)}</b><small>${esc(x.e.name)}</small></td>${
-      x.sc.map((s,j)=>`<td class="${s.code?'c':''} ${s.prov?'p':''} ${x.disc.has(j)?'d':''}">${x.disc.has(j)?'('+s.t+')':s.t}</td>`).join('')
-    }<td class="net">${x.net}</td><td>${x.total}</td></tr>`).join('')}</tbody></table>`;
+      x.sc.map((s,j)=>`<td data-e="${x.e.id}" data-r="${used[j].i}" class="${s.code?'c':''} ${s.prov?'p':''} ${x.disc.has(j)?'d':''}">${x.disc.has(j)?'('+s.t+')':s.t}</td>`).join('')
+    }<td class="net">${fmt(x.net)}</td><td>${fmt(x.total)}</td></tr>`).join('')}</tbody></table>`;
   $('#raceList').innerHTML=S.races.map((r,i)=>{const p=positions(r);
-    return `<div class="rl"><b>R${i+1}</b><span class="grow hint" style="margin:0">${Object.keys(p).length} finished · ${Object.keys(r.codes).length} codes · ${r.done?'closed':'<span class="lv">open</span>'}</span>
+    const info=r.scores?`imported · ${Object.keys(r.scores).length} boats`:`${Object.keys(p).length} finished · ${Object.keys(r.codes).length} codes · ${r.done?'closed':'<span class="lv">open</span>'}`;
+    return `<div class="rl"><b>R${i+1}</b><span class="grow hint" style="margin:0">${info}</span>
     <button class="btn sm" onclick="S.cur=${i};save();show('race')">Open</button><button class="btn sm bad" onclick="delRace(${i})">✕</button></div>`}).join('')||'<div class="hint">No races yet.</div>';
 }
 function delRace(i){modal(`<h3>Delete race ${i+1}?</h3><p>Its results will be removed. This can't be undone.</p>`,[{t:'Cancel'},{t:'Delete',cls:'bad',f:()=>{S.races.splice(i,1);if(S.cur>=S.races.length)S.cur=S.races.length-1;save();renderResults()}}])}
 function resultsText(){const {rows,used}=standings();
   const h=['Rank','Sail','Name','Club',...used.map(u=>'R'+(u.i+1)),'Net','Total'].join('\t');
-  return [S.name,h,...rows.map(x=>[x.rank,x.e.sail,x.e.name,x.e.club||'',...x.sc.map((s,j)=>x.disc.has(j)?'('+s.t+')':s.t),x.net,x.total].join('\t'))].filter(Boolean).join('\n')}
+  return [S.name,h,...rows.map(x=>[x.rank,x.e.sail,x.e.name,x.e.club||'',...x.sc.map((s,j)=>x.disc.has(j)?'('+s.t+')':s.t),fmt(x.net),fmt(x.total)].join('\t'))].filter(Boolean).join('\n')}
 function copyText(t,label){
   const fallback=()=>modal(`<h3>${label}</h3><p>Select all and copy:</p><textarea readonly style="min-height:200px">${esc(t)}</textarea>`,[{t:'Close'}]);
   try{navigator.clipboard.writeText(t).then(()=>toast('Copied ✓'),fallback)}catch(e){fallback()}}
 $('#copyRes').onclick=()=>copyText(resultsText(),'Results');
+
+/* ---------- RESULTS: tap a cell to edit ---------- */
+$('#resTable').addEventListener('click',ev=>{const td=ev.target.closest('td[data-e]');if(!td)return;
+  const i=+td.dataset.r,id=td.dataset.e;S.cur=i;save();boatSheet(id)});
+function editScore(i,id){
+  const r=S.races[i],e=byId(id),s=r.scores[id];
+  modal(`<h3>${esc(e.sail)} · R${i+1}</h3><p>Imported score: <b style="color:var(--txt)">${s?esc(s.t):'none (DNC)'}</b></p>
+    <div class="row"><input id="esNum" type="number" step="0.1" inputmode="decimal" placeholder="Points" value="${s&&!s.code&&s.v!=null?s.v:''}"></div>
+    <div class="hint">Enter points, or pick a code below (codes score entries + 1).</div>`,
+    [{t:'Save points',cls:'pri',f:()=>{const v=parseFloat($('#esNum').value);if(isNaN(v)){toast('Enter a number');return false}
+      r.scores[id]={v,t:fmt(v)};save();render()}},
+     ...CODES.map(c=>({t:c,cls:s&&s.code===c?'pri':'',f:()=>{r.scores[id]={v:null,t:c,code:c};save();render()}})),
+     {t:'Close'}]);
+}
+
+/* ---------- IMPORT RESULTS ---------- */
+const RACE_HDR=/^(r|race|f|q|m)?\s?\.?\s?\d{1,2}$/i;
+const HDR_WORD=/^(sail|sail ?no|sail ?number|sail ?nr|sailno|sailnumber|bow|bow ?no|no|nr|number|name|names|helm|helm ?name|helmname|skipper|sailor|crew|crew ?name|rank|rk|pos|position|place|pl|club|team|nat|nation|country|total|tot|net|nett|pts|points|boat|boat ?name|class|fleet|div|division)$/;
+const hdrWord=x=>HDR_WORD.test(String(x).toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim());
+const CODE_RE=/\b(DNF|DNS|DNC|OCS|BFD|UFD|DSQ|DNE|RET|RAF|NSC|SCP|ZFP|RDG[ABC]?|DPI|STP|DGM|NOF)\b/i;
+function parseScore(t){
+  t=String(t??'').replace(/[()\[\]*]/g,' ').trim();if(!t)return null;
+  const cm=t.match(CODE_RE),code=cm?cm[1].toUpperCase():null;
+  const nm=t.replace(CODE_RE,' ').match(/-?\d+(?:[.,]\d+)?/),v=nm?parseFloat(nm[0].replace(',','.')):null;
+  if(code==null&&v==null)return null;
+  if(!code&&/[a-z]{2,}/i.test(t))return null;
+  if(code)return{v,t:PEN.includes(code)&&v!=null?`${fmt(v)} ${code}`:code,code};
+  return{v,t:fmt(v)};
+}
+function headerScore(cells){const c=cells.map(x=>String(x).trim());if(!c.some(hdrWord))return 0;return c.filter(x=>RACE_HDR.test(x)).length}
+// rows: array of string arrays with a header row somewhere
+function resultsFromRows(rows){
+  let hi=-1,best=1;rows.slice(0,40).forEach((r,i)=>{const s=headerScore(r);if(s>best){best=s;hi=i}});
+  if(hi<0)return null;
+  return resultsFromHeader(rows[hi].map(x=>String(x).trim()),rows.slice(hi+1));
+}
+function resultsFromHeader(h,data){
+  const lc=h.map(x=>x.toLowerCase());
+  const raceIdx=h.map((x,i)=>RACE_HDR.test(x)?i:-1).filter(i=>i>=0);
+  const f=(re,skip=[])=>lc.findIndex((x,i)=>!skip.includes(i)&&!raceIdx.includes(i)&&re.test(x));
+  const si=f(/sail|bow|^no\.?$|^nr|number|^boat$/),ni0=f(/helm|skipper|sailor/),ni=ni0>=0?ni0:f(/name/,[si]);
+  const nat=f(/^nat|nation|country/,[si]),club=f(/club|team|yacht club/,[si,ni,nat]);
+  const boats=[];
+  data.forEach(r=>{
+    if(headerScore(r)>=raceIdx.length&&raceIdx.length)return; // repeated header on new page
+    let sail=String(r[si>=0?si:1]??'').trim();if(!sail)return;
+    if(nat>=0&&/^\d+$/.test(sail)&&/^[A-Z]{3}$/i.test(String(r[nat]||'').trim()))sail=String(r[nat]).trim().toUpperCase()+' '+sail;
+    const scores=raceIdx.map(i=>parseScore(r[i]));
+    if(scores.filter(Boolean).length<Math.max(1,Math.ceil(raceIdx.length/2)))return;
+    boats.push({sail,name:ni>=0?String(r[ni]??'').trim():'',club:club>=0?String(r[club]??'').trim():'',scores});
+  });
+  return{labels:raceIdx.map(i=>h[i]),boats};
+}
+// whitespace-only text (e.g. copied from a PDF on a phone)
+function mergeScoreTokens(tk){const out=[];for(let i=0;i<tk.length;i++){let t=tk[i];
+  if(t.startsWith('(')&&!t.includes(')')){while(i+1<tk.length&&!t.includes(')'))t+=' '+tk[++i]}
+  else if(/^-?\d+(?:[.,]\d+)?$/.test(t)&&tk[i+1]&&CODE_RE.test(tk[i+1])&&tk[i+1].replace(/[()]/g,'').length<=4)t+=' '+tk[++i];
+  out.push(t)}return out}
+function resultsFromPlain(lines){
+  let hi=-1,best=1;lines.slice(0,40).forEach((l,i)=>{const s=headerScore(l.split(/\s+/));if(s>best){best=s;hi=i}});if(hi<0)return null;
+  const ht=lines[hi].split(/\s+/),K=ht.filter(x=>RACE_HDR.test(x)).length;
+  let last=-1;ht.forEach((x,i)=>{if(RACE_HDR.test(x))last=i});const tail=ht.slice(last+1).filter(x=>/total|net|pts|points|score|tot/i.test(x)).length;
+  const boats=[];
+  lines.slice(hi+1).forEach(l=>{const tk=mergeScoreTokens(l.trim().split(/\s+/));if(tk.length<K+2)return;
+    const sc=tk.slice(tk.length-tail-K,tk.length-tail).map(parseScore);if(sc.filter(Boolean).length<Math.ceil(K/2))return;
+    let head=tk.slice(0,tk.length-tail-K);if(/^\d+\.?$/.test(head[0])&&head.length>1)head=head.slice(1);
+    let sail;if(/^[A-Z]{3}$/i.test(head[0])&&/^\d+$/.test(head[1]||'')){sail=head[0].toUpperCase()+' '+head[1];head=head.slice(2)}else{sail=head[0];head=head.slice(1)}
+    if(!sail)return;boats.push({sail,name:head.join(' '),club:'',scores:sc})});
+  return{labels:Array.from({length:K},(_,i)=>'R'+(i+1)),boats};
+}
+async function loadScript(src){if(document.querySelector(`script[src="${src}"]`))return;await new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',PDFW='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+async function pdfResults(buf){
+  await loadScript(PDFJS);await loadScript(PDFW);pdfjsLib.GlobalWorkerOptions.workerSrc=PDFW;
+  const doc=await pdfjsLib.getDocument({data:buf}).promise;const lines=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const tc=await (await doc.getPage(p)).getTextContent();
+    const it=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str.trim(),x:i.transform[4],y:i.transform[5],w:i.width||0,h:Math.abs(i.transform[3])||8}));
+    it.sort((a,b)=>b.y-a.y||a.x-b.x);
+    let cur=null;it.forEach(i=>{if(cur&&Math.abs(cur.y-i.y)<=Math.max(2,i.h*.35))cur.items.push(i);else{cur={y:i.y,items:[i]};lines.push(cur)}});
+  }
+  lines.forEach(l=>{l.items.sort((a,b)=>a.x-b.x);const m=[];l.items.forEach(i=>{const pv=m[m.length-1];
+    if(pv&&i.x-(pv.x+pv.w)<i.h*.15){pv.s+=i.s;pv.w=i.x+i.w-pv.x}else m.push({...i})});l.items=m});
+  // find header lines and map items to header columns by x
+  let cols=null;const rows=[];let hdr=null;
+  lines.forEach(l=>{
+    const texts=l.items.map(i=>i.s);
+    if(headerScore(texts)>=2){cols=l.items.map(i=>({x0:i.x,x1:i.x+Math.max(i.w,i.h),c:(i.x*2+i.w)/2}));if(!hdr)hdr=texts;return}
+    if(!cols)return;
+    const cells=Array(cols.length).fill('');
+    l.items.forEach(i=>{const a=i.x,b=i.x+i.w,c=(a+b)/2;let bi=-1,bo=0;
+      cols.forEach((k,j)=>{const o=Math.min(b,k.x1)-Math.max(a,k.x0);if(o>bo){bo=o;bi=j}});
+      if(bi<0){let bd=1e9;cols.forEach((k,j)=>{const d=Math.abs(k.c-c);if(d<bd){bd=d;bi=j}})}
+      cells[bi]=cells[bi]?cells[bi]+' '+i.s:i.s});
+    rows.push(cells)});
+  if(hdr){const r=resultsFromHeader(hdr,rows);if(r&&r.boats.length)return r}
+  return resultsFromPlain(lines.map(l=>l.items.map(i=>i.s).join(' ')));
+}
+function resultsFromText(text){
+  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim());if(!lines.length)return null;
+  const delim=lines.some(l=>l.includes('\t'))?'\t':lines.some(l=>l.split(';').length>3)?';':lines.some(l=>l.split(',').length>3)?',':null;
+  if(delim){const r=resultsFromRows(lines.map(l=>splitRow(l,delim)));if(r&&r.boats.length)return r}
+  return resultsFromPlain(lines);
+}
+async function importResultsFile(f){
+  try{toast('Reading '+f.name+'…');let res;
+    if(/\.pdf$/i.test(f.name))res=await pdfResults(await f.arrayBuffer());
+    else if(/\.xlsx?$/i.test(f.name)){await loadXLSX();const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+      res=resultsFromRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''}).map(r=>r.map(String)))}
+    else res=resultsFromText(await f.text());
+    offerResults(res);
+  }catch(err){console.error(err);toast('Could not read that file')}
+}
+function matchEntry(sail){const k=keyOf(sail);let e=S.entries.find(x=>keyOf(x.sail)===k);if(e)return e;
+  const d=k.replace(/\D/g,'');if(d){const m=S.entries.filter(x=>keyOf(x.sail).replace(/\D/g,'')===d);if(m.length===1)return m[0]}return null}
+function offerResults(res){
+  if(!res||!res.boats.length){modal(`<h3>No results found</h3><p>I couldn't find a results table with race columns (R1, R2…). Try the Excel/CSV export, or paste the table into the box in Setup.</p>`,[{t:'OK'}]);return}
+  const K=res.labels.length,known=res.boats.filter(b=>matchEntry(b.sail)).length;
+  const prev=`<div class="tbl" style="max-height:260px;overflow:auto"><table class="res"><thead><tr><th class="l">Sail</th>${res.labels.map((l,i)=>`<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${
+    res.boats.slice(0,12).map(b=>`<tr><td class="l"><b>${esc(b.sail)}</b><small>${esc(b.name)}</small></td>${b.scores.map(s=>`<td class="${s&&s.code?'c':''}">${s?esc(s.t):'–'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const apply=replace=>{
+    if(replace)S.races=[];
+    const base=S.races.length;
+    const races=res.labels.map(()=>({order:[],codes:{},done:true,scores:{}}));
+    res.boats.forEach(b=>{let e=matchEntry(b.sail);
+      if(!e){e={id:uid(),sail:b.sail,name:b.name,club:b.club};S.entries.push(e)}else{if(!e.name&&b.name)e.name=b.name;if(!e.club&&b.club)e.club=b.club}
+      b.scores.forEach((s,j)=>{if(s)races[j].scores[e.id]=s})});
+    S.races.push(...races);S.cur=-1;save();show('results');toast(`Imported ${K} race${K>1?'s':''} as R${base+1}–R${base+K}`)};
+  const live=S.races.filter(r=>!r.scores).length;
+  modal(`<h3>Found ${res.boats.length} boats · ${K} races</h3><p>${known} match your entry list${res.boats.length-known?`, ${res.boats.length-known} new boats will be added`:''}. Check the scores look right:</p>${prev}${res.boats.length>12?`<div class="hint">…and ${res.boats.length-12} more</div>`:''}`,
+    S.races.length?[{t:`Add after R${S.races.length}`,cls:'pri',f:()=>apply(false)},{t:`Replace all ${S.races.length} races`,cls:'bad',f:()=>apply(true)},{t:'Cancel'}]
+                  :[{t:'Import',cls:'pri',f:()=>apply(false)},{t:'Cancel'}]);
+}
+['#resFileIn','#resFileIn2'].forEach(s=>$(s).onchange=e=>{const f=e.target.files[0];if(f)importResultsFile(f);e.target.value=''});
+$('#resPasteBtn').onclick=()=>{const t=$('#resPaste').value;if(!t.trim())return toast('Paste results first');offerResults(resultsFromText(t))};
 
 /* ---------- SETUP ---------- */
 function renderSetup(){
