@@ -3,11 +3,12 @@
 A fast, phone-first scoring app for sailing coaches. Record finishes from the coach boat (RIB) with big tap buttons and see live standings.
 
 ## Features
-- **Entry list upload:** CSV, TXT or Excel (.xlsx), or paste from a spreadsheet. Sail / Name / Club columns are detected automatically.
+- **Multiple fleets:** each fleet (class) has its own entry list, races, discards and results. Switch with the buttons at the top of every screen.
+- **Entry list upload:** CSV, TXT or Excel (.xlsx), or paste from a spreadsheet. Sail / Name / Club columns are detected automatically; a Class / Fleet column splits the list into fleets.
 - **Finish recording:** tap boats in finishing order, undo, filter by sail number, hide boats that have finished. Hold a boat to move it, remove it or give it a code.
 - **Start penalties:** a separate BFD / UFD / OCS / DNS / DNC screen. Boats with a penalty are taken out of the finish count automatically.
 - **Live standings:** Low Point System (RRS Appendix A), entries + 1 for codes, configurable discards, A8 tie-breaks, optional live race.
-- **Import earlier results:** load official results so far from a PDF (Sailwave, Manage2Sail…), Excel, CSV or pasted text. Imported races are added to the event, and new races you score continue after them. Tap any cell in Results to correct a score.
+- **Import earlier results:** load official results so far from a PDF (Sailwave, Manage2Sail…), Excel, CSV or pasted text. Each class in the file is detected separately and can go into its own fleet. Imported races are added to the event, and new races you score continue after them. Tap any cell in Results to correct a score.
 - **Copy results** as a table you can paste into Excel or Sheets.
 - Data is saved in the browser on your device (localStorage). Use *Copy backup* / *Restore backup* in Setup to move it.
 
